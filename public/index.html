@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>claude-burn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #09090b;
+    --surface: #111113;
+    --surface2: #18181b;
+    --border: #27272a;
+    --text: #e4e4e7;
+    --text2: #71717a;
+    --accent: #10b981;
+    --green: #34d399;
+    --red: #f87171;
+    --orange: #fbbf24;
+    --blue: #60a5fa;
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in { animation: fadeUp 0.5s var(--ease-out) both; }
+  header {
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  header h1 { font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: -0.3px; color: var(--text2); }
+  header h1 span { color: var(--accent); font-weight: 700; }
+  .controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .controls select, .controls button {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all 0.4s var(--ease);
+  }
+  .controls select:hover, .controls button:hover { border-color: var(--text2); color: var(--text); background: var(--border); }
+  .controls select:focus { outline: none; border-color: var(--accent); }
+  #refresh-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+  }
+  #refresh-btn:hover { color: var(--accent); border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.06); }
+  #refresh-btn:active { transform: scale(0.92); transition-duration: 0.1s; }
+  #refresh-btn.loading { pointer-events: none; opacity: 0.4; }
+  #refresh-btn.loading svg { animation: spin 0.8s var(--ease) infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .summary-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .token-share-bar {
+    padding: 10px 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .summary-card {
+    background: var(--surface);
+    padding: 20px 28px;
+  }
+  .summary-card .label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; font-weight: 600; }
+  .summary-card .value { font-family: var(--font-mono); font-size: 28px; font-weight: 700; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+  .summary-card .value.active { color: var(--green); }
+  .summary-card .value.cost { color: var(--orange); }
+  .summary-card .value.tokens { color: var(--text); }
+
+  .main { display: grid; grid-template-columns: 1fr 400px; min-height: calc(100vh - 140px); }
+  .sessions-panel { border-right: 1px solid var(--border); overflow-y: auto; max-height: calc(100vh - 140px); }
+  .detail-panel { overflow-y: auto; max-height: calc(100vh - 140px); }
+
+  .session-card {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.4s var(--ease);
+    border-left: 2px solid transparent;
+  }
+  .session-card:hover { background: var(--surface2); }
+  .session-card.selected { background: var(--surface2); border-left-color: var(--accent); box-shadow: inset 2px 0 12px rgba(16,185,129,0.05); }
+  .session-card.active-session { border-left-color: var(--green); }
+  .session-card.active-session.selected { border-left-color: var(--accent); }
+
+  .session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .session-title {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 70%;
+    letter-spacing: -0.2px;
+  }
+  .session-badge {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 3px 7px;
+    border-radius: 6px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .badge-active { background: rgba(52,211,153,0.1); color: var(--green); animation: badgePulse 3s ease-in-out infinite; }
+  .badge-idle { background: var(--surface2); color: var(--text2); }
+  @keyframes badgePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  .session-meta {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--text2);
+    font-family: var(--font-mono);
+  }
+  .session-meta .highlight { color: var(--text); font-weight: 600; }
+
+  .session-bar {
+    margin-top: 8px;
+    height: 4px;
+    background: var(--surface);
+    border-radius: 2px;
+    overflow: hidden;
+    display: flex;
+  }
+  .bar-segment {
+    height: 100%;
+    transition: width 0.5s var(--ease-out);
+  }
+  .bar-input { background: var(--blue); }
+  .bar-output { background: var(--accent); }
+  .bar-cache-read { background: #2dd4bf; opacity: 0.5; }
+  .bar-cache-create { background: var(--orange); opacity: 0.5; }
+
+  .detail-panel { padding: 20px; }
+  .detail-panel h2 { font-size: 15px; font-weight: 600; margin-bottom: 20px; letter-spacing: -0.3px; }
+  .detail-section {
+    padding: 16px 0;
+    margin-bottom: 0;
+    border-top: 1px solid var(--border);
+  }
+  .detail-section:first-of-type { border-top: none; padding-top: 0; }
+  .detail-section h3 {
+    font-size: 11px;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+
+  .token-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .token-item {
+    padding: 12px 14px;
+    background: var(--surface2);
+    border-radius: 10px;
+  }
+  .token-item .label { font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 4px; font-weight: 600; letter-spacing: 0.02em; }
+  .token-item .val { font-family: var(--font-mono); font-size: 18px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+  .tip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 8px;
+    font-weight: 600;
+    cursor: help;
+    position: relative;
+    flex-shrink: 0;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .tip:hover { border-color: var(--text2); color: var(--text); }
+  #tooltip {
+    position: fixed;
+    background: var(--text);
+    color: var(--bg);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 400;
+    white-space: normal;
+    max-width: 240px;
+    line-height: 1.5;
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    display: none;
+  }
+
+  .subagent-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+  .subagent-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: help;
+    transition: background 0.15s;
+  }
+  .subagent-row:hover { background: var(--border); }
+  .subagent-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .subagent-name {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1;
+    color: var(--text2);
+  }
+  .subagent-tokens { font-family: var(--font-mono); color: var(--text); font-weight: 700; font-size: 12px; flex-shrink: 0; letter-spacing: -0.5px; }
+  .subagent-bar {
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .subagent-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+
+  .chart-container { position: relative; height: 180px; }
+
+  .burn-alert {
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .burn-val { font-family: var(--font-mono); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+  .burn-alert.high { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2); color: var(--red); }
+  .burn-alert.medium { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); color: var(--orange); }
+  .burn-alert.low { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.2); color: var(--green); }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    color: var(--text2);
+    font-size: 12px;
+    gap: 12px;
+  }
+  .empty-state svg { opacity: 0.2; }
+  .empty-state p { font-size: 13px; }
+  .empty-state .hint { font-size: 11px; opacity: 0.5; }
+
+  .refresh-indicator {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 3s ease-in-out infinite;
+    box-shadow: 0 0 6px rgba(16,185,129,0.3);
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  .project-tag {
+    font-size: 10px;
+    color: var(--text2);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .billing-progress {
+    height: 32px;
+    background: var(--surface2);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    gap: 2px;
+    position: relative;
+  }
+  .billing-progress-fill {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+    min-width: 20px;
+    transition: width 0.6s var(--ease-out);
+    position: relative;
+  }
+  .billing-progress-fill .bp-label {
+    position: absolute;
+    white-space: nowrap;
+    font-size: 9px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  .list-toolbar {
+    display: flex;
+    gap: 6px;
+    padding: 8px 24px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+  }
+  .list-toolbar input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: var(--font-sans);
+    transition: border-color 0.3s var(--ease);
+  }
+  .list-toolbar input:focus { outline: none; border-color: var(--accent); }
+  .list-toolbar input::placeholder { color: var(--text2); }
+  .list-toolbar select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    padding: 6px 8px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all 0.3s var(--ease);
+  }
+  .list-toolbar select:hover { border-color: var(--text2); color: var(--text); }
+  .list-toolbar select:focus { outline: none; border-color: var(--accent); }
+  .kbd {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    line-height: 1;
+  }
+
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .detail-panel { border-top: 1px solid var(--border); max-height: none; }
+    .summary-bar { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div id="tooltip"></div>
+
+<header>
+  <h1><span>claude</span>-burn</h1>
+  <div class="controls">
+    <div class="refresh-indicator"></div>
+    <span id="last-update">--</span>
+    <select id="hours-select">
+      <option value="1">1h</option>
+      <option value="6">6h</option>
+      <option value="12">12h</option>
+      <option value="24" selected>24h</option>
+      <option value="72">3d</option>
+      <option value="168">7d</option>
+      <option value="720">30d</option>
+    </select>
+    <span id="autorefresh-status" style="font-size:10px"></span>
+    <button id="refresh-btn" onclick="fetchData()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></button>
+  </div>
+</header>
+
+<div class="summary-bar fade-in" style="animation-delay:0.1s">
+  <div class="summary-card">
+    <div class="label">Active Sessions</div>
+    <div class="value active" id="sum-active">--</div>
+    <div style="font-size:11px;color:#a1a1aa;margin-top:6px;font-family:var(--font-mono)" id="sum-active-time"></div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Total Sessions</div>
+    <div class="value" id="sum-total">--</div>
+    <div style="font-size:11px;color:#a1a1aa;margin-top:6px;font-family:var(--font-mono)" id="sum-total-time"></div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Total Tokens</div>
+    <div class="value tokens" id="sum-tokens">--</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">API Equivalent <span class="tip" data-tip="What these tokens would cost at API pay-per-token pricing. Calculated per model: Opus $5/$25, Sonnet $3/$15, Haiku $1/$5 per 1M input/output tokens.">?</span></div>
+    <div class="value cost" id="sum-cost">--</div>
+    <div id="cost-breakdown" style="font-size:11px;color:#a1a1aa;margin-top:6px;font-family:var(--font-mono)"></div>
+  </div>
+</div>
+
+<div class="token-share-bar fade-in" style="animation-delay:0.2s">
+  <div class="billing-progress" id="billing-progress"></div>
+</div>
+
+<div class="main fade-in" style="animation-delay:0.25s">
+  <div class="sessions-panel" id="sessions-list"></div>
+  <div class="detail-panel" id="detail-panel">
+    <div class="empty-state">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
+      <p>Select a session to view details</p>
+      <span class="hint">Click any session on the left</span>
+    </div>
+  </div>
+</div>
+
+<script>
+let sessions = [];
+let selectedId = null;
+let chart = null;
+let sortBy = 'recent'; // recent, tokens, burn
+let searchQuery = '';
+
+const fmt = (n) => {
+  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + 'B';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+  return n.toString();
+};
+
+const fmtDuration = (sec) => {
+  if (sec < 60) return sec + 's';
+  if (sec < 3600) return Math.floor(sec / 60) + 'm';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return h + 'h ' + m + 'm';
+};
+
+const fmtTime = (ts) => {
+  if (!ts) return '--';
+  try {
+    const d = new Date(ts);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return isToday ? time : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + time;
+  } catch { return '--'; }
+};
+
+const fmtAgo = (ts) => {
+  if (!ts) return '';
+  try {
+    const sec = (Date.now() - new Date(ts).getTime()) / 1000;
+    if (sec < 60) return 'just now';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+    if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+    return Math.floor(sec / 86400) + 'd ago';
+  } catch { return ''; }
+};
+
+async function fetchData() {
+  const hours = document.getElementById('hours-select').value;
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('loading');
+  try {
+    const resp = await fetch(`/api/sessions?hours=${hours}`);
+    const data = await resp.json();
+    sessions = data.sessions;
+
+    document.getElementById('sum-active').textContent = data.summary.active_sessions;
+    document.getElementById('sum-total').textContent = data.summary.total_sessions;
+    document.getElementById('sum-tokens').textContent = fmt(data.summary.total_tokens);
+
+    const activeTime = sessions.filter(s => s.is_active).reduce((sum, s) => sum + s.active_sec, 0);
+    const totalTime = sessions.reduce((sum, s) => sum + s.active_sec, 0);
+    document.getElementById('sum-active-time').textContent = fmtDuration(activeTime) + ' active';
+    document.getElementById('sum-total-time').textContent = fmtDuration(totalTime) + ' active';
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    const ac = data.summary.api_cost;
+    if (ac) {
+      document.getElementById('sum-cost').textContent = '$' + ac.total.toLocaleString();
+      document.getElementById('cost-breakdown').innerHTML =
+        `in $${ac.input} · out $${ac.output} · cr $${ac.cache_read} · cw $${ac.cache_create}`;
+    }
+
+    renderShareBar();
+    renderSessions();
+    if (selectedId) renderDetail(selectedId);
+  } catch (e) {
+    console.error('Fetch error:', e);
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
+
+const SESSION_COLORS = ['#6c5ce7', '#00b894', '#fdcb6e', '#74b9ff', '#ff6b6b', '#a29bfe', '#55efc4', '#fd79a8'];
+
+function renderShareBar() {
+  const progress = document.getElementById('billing-progress');
+  const total = sessions.reduce((s, d) => s + d.total_tokens, 0);
+  if (!total || sessions.length === 0) {
+    progress.innerHTML = '';
+    return;
+  }
+
+  // Sort by tokens desc for the bar
+  const sorted = [...sessions].sort((a, b) => b.total_tokens - a.total_tokens);
+
+  let otherTokens = 0, otherCount = 0;
+  const significant = [];
+  const hours = parseInt(document.getElementById('hours-select').value, 10);
+  const minPct = hours <= 24 ? 0.2 : 2;
+  sorted.forEach(s => {
+    const share = s.total_tokens / total * 100;
+    if (share >= minPct) {
+      significant.push(s);
+    } else {
+      otherTokens += s.total_tokens;
+      otherCount++;
+    }
+  });
+
+  let html = significant.map((s, i) => {
+    const color = SESSION_COLORS[i % SESSION_COLORS.length];
+    const share = (s.total_tokens / total * 100);
+    const label = share >= 8 ? esc(s.title).slice(0, 20) + (s.title.length > 20 ? '...' : '') : share >= 3 ? fmt(s.total_tokens) : '';
+    return `<div class="billing-progress-fill" data-tip="${esc(s.title)} — ${fmt(s.total_tokens)} (${share.toFixed(1)}%)" style="width:${share}%;background:${color};cursor:pointer" onclick="selectSession('${s.id}')">
+      ${label ? `<span class="bp-label">${label}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  if (otherTokens > 0) {
+    const otherShare = otherTokens / total * 100;
+    html += `<div class="billing-progress-fill" data-tip="${otherCount} smaller sessions — ${fmt(otherTokens)} total (${otherShare.toFixed(1)}%)" style="width:${otherShare}%;background:var(--border);cursor:default">
+      ${otherShare >= 3 ? `<span class="bp-label" style="color:var(--text2)">${otherCount} other</span>` : ''}
+    </div>`;
+  }
+
+  progress.innerHTML = html;
+}
+
+function getFilteredSessions() {
+  let list = [...sessions];
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    list = list.filter(s => s.title.toLowerCase().includes(q) || s.project.toLowerCase().includes(q));
+  }
+  if (sortBy === 'tokens') list.sort((a, b) => b.total_tokens - a.total_tokens);
+  else if (sortBy === 'burn') list.sort((a, b) => b.recent_burn_rate_per_min - a.recent_burn_rate_per_min);
+  else list.sort((a, b) => (b.last_ts || '').localeCompare(a.last_ts || ''));
+  return list;
+}
+
+function renderSessions() {
+  const el = document.getElementById('sessions-list');
+  const toolbar = `<div class="list-toolbar">
+    <input type="text" id="search-input" placeholder="Search sessions..." value="${esc(searchQuery)}">
+    <select id="sort-select">
+      <option value="recent"${sortBy === 'recent' ? ' selected' : ''}>Recent</option>
+      <option value="tokens"${sortBy === 'tokens' ? ' selected' : ''}>Most tokens</option>
+      <option value="burn"${sortBy === 'burn' ? ' selected' : ''}>Burn rate</option>
+    </select>
+  </div>`;
+  const legend = `<div style="padding:8px 24px;font-size:10px;color:var(--text2);display:flex;gap:16px;border-bottom:1px solid var(--border);font-family:var(--font-mono);letter-spacing:0.02em">
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;background:var(--blue);border-radius:50%;display:block"></span>input</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;background:var(--accent);border-radius:50%;display:block"></span>output</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;background:#2dd4bf;opacity:0.6;border-radius:50%;display:block"></span>cache read</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;background:var(--orange);opacity:0.6;border-radius:50%;display:block"></span>cache write</span>
+  </div>`;
+  const filtered = getFilteredSessions();
+  // Only rebuild toolbar if it doesn't exist yet
+  if (!el.querySelector('.list-toolbar')) {
+    el.innerHTML = toolbar + legend;
+  }
+  // Remove old cards, keep toolbar and legend
+  el.querySelectorAll('.session-card').forEach(c => c.remove());
+  const cardsHtml = filtered.map(s => {
+    const total = s.total_tokens || 1;
+    const pIn = (s.input_tokens / total * 100).toFixed(1);
+    const pOut = (s.output_tokens / total * 100).toFixed(1);
+    const pCR = (s.cache_read_tokens / total * 100).toFixed(1);
+    const pCC = (s.cache_create_tokens / total * 100).toFixed(1);
+
+    return `
+      <div class="session-card ${s.is_active ? 'active-session' : ''} ${s.id === selectedId ? 'selected' : ''}"
+           onclick="selectSession('${s.id}')">
+        <div class="session-header">
+          <div class="session-title">${esc(s.title)}</div>
+          <span class="session-badge ${s.is_active ? 'badge-active' : 'badge-idle'}">
+            ${s.is_active ? 'ACTIVE' : 'idle'}
+          </span>
+        </div>
+        <div class="project-tag">${esc(s.project)}</div>
+        <div class="session-meta">
+          <span>${fmtTime(s.first_ts)} - ${fmtTime(s.last_ts)}${s.is_active ? '' : ' · ' + fmtAgo(s.last_ts)}</span>
+          <span>${s.user_msg_count} msgs</span>
+          <span>tokens: <span class="highlight">${fmt(s.total_tokens)}</span></span>
+          ${s.user_msg_count > 0 ? `<span>${fmt(Math.round(s.total_tokens / s.user_msg_count))}/msg</span>` : ''}
+          ${s.subagent_count > 0 ? `<span>${s.subagent_count} subagents</span>` : ''}
+        </div>
+        <div class="session-bar">
+          <div class="bar-segment bar-input" style="width:${pIn}%"></div>
+          <div class="bar-segment bar-output" style="width:${pOut}%"></div>
+          <div class="bar-segment bar-cache-read" style="width:${pCR}%"></div>
+          <div class="bar-segment bar-cache-create" style="width:${pCC}%"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  el.insertAdjacentHTML('beforeend', cardsHtml);
+}
+
+function selectSession(id) {
+  selectedId = id;
+  renderSessions();
+  renderDetail(id);
+  // Scroll selected card into view
+  const card = document.querySelector(`.session-card.selected`);
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderDetail(id) {
+  const s = sessions.find(s => s.id === id);
+  if (!s) return;
+
+  const panel = document.getElementById('detail-panel');
+
+  // Burn rate alert
+  let alertHtml = '';
+  const recentRate = s.recent_burn_rate_per_min || 0;
+  const avgRate = s.burn_rate_per_min || 0;
+  const peakRate = Math.max(recentRate, avgRate);
+
+  if (peakRate > 0) {
+    const level = peakRate > 2_000_000 ? 'high' : peakRate > 500_000 ? 'medium' : 'low';
+    alertHtml = `<div class="burn-alert ${level}">
+      <div style="display:flex;flex-direction:column;gap:8px;flex:1">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>Recent (last 3 min) <span class="tip" data-tip="Token consumption rate during the last 3 minutes of activity. Shows current intensity — spikes when subagents run or large files are read.">?</span></span>
+          <span class="burn-val">${fmt(recentRate)}<span style="font-size:12px;font-weight:400">/min</span></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>Average (active time) <span class="tip" data-tip="Total tokens divided by active time only (idle gaps over 2 min excluded). Shows your true average consumption rate when working.">?</span></span>
+          <span class="burn-val">${fmt(avgRate)}<span style="font-size:12px;font-weight:400">/min</span></span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Subagents sorted by total
+  const subs = Object.entries(s.subagents).sort((a, b) => b[1].total - a[1].total);
+  const maxSubTotal = Math.max(...subs.map(([, v]) => v.total), 1);
+
+  panel.innerHTML = `
+    <h2>${esc(s.title)}</h2>
+    ${alertHtml}
+
+    <div class="detail-section">
+      <h3>Token Breakdown</h3>
+      <div class="token-grid">
+        <div class="token-item">
+          <div class="label">Input <span class="tip" data-tip="New tokens sent to the API this turn — your message, tool calls, fresh content not yet cached.">?</span></div>
+          <div class="val" style="color:var(--blue)">${fmt(s.input_tokens)}</div>
+        </div>
+        <div class="token-item">
+          <div class="label">Output <span class="tip" data-tip="Tokens Claude generated — replies, code, tool decisions. This is the actual 'work' produced.">?</span></div>
+          <div class="val" style="color:var(--accent)">${fmt(s.output_tokens)}</div>
+        </div>
+        <div class="token-item">
+          <div class="label">Cache read <span class="tip" data-tip="Each turn re-sends the full conversation history from cache. 10 turns with 300K context = 3M cache read. This is always the biggest number and grows as the conversation gets longer.">?</span></div>
+          <div class="val" style="color:var(--green)">${fmt(s.cache_read_tokens)}</div>
+        </div>
+        <div class="token-item">
+          <div class="label">Cache write <span class="tip" data-tip="New content saved to cache after each turn — your latest message, tool results, Claude's reply. These become part of cache read on the next turn.">?</span></div>
+          <div class="val" style="color:var(--orange)">${fmt(s.cache_create_tokens)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Session Info</h3>
+      <div class="token-grid">
+        <div class="token-item">
+          <div class="label">Duration <span class="tip" data-tip="Total: time from first to last API call. Active: time spent actually working (gaps over 2 min are excluded).">?</span></div>
+          <div class="val">${fmtDuration(s.duration_sec)}</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">active: ${fmtDuration(s.active_sec)}</div>
+        </div>
+        <div class="token-item">
+          <div class="label">Your messages <span class="tip" data-tip="Messages you typed. Does not count tool calls, subagent requests, or API retries.">?</span></div>
+          <div class="val">${s.user_msg_count}</div>
+        </div>
+        <div class="token-item">
+          <div class="label">Model <span class="tip" data-tip="The primary model used. Subagents may use different (cheaper) models like Haiku.">?</span></div>
+          <div class="val" style="font-size:12px">${s.model || '?'}</div>
+        </div>
+        <div class="token-item">
+          <div class="label">Avg context size <span class="tip" data-tip="Average tokens consumed per message you sent. Higher = bigger conversation context. Over 500K means you should consider starting a fresh session.">?</span></div>
+          <div class="val" style="color:var(--orange)">${s.user_msg_count > 0 ? fmt(Math.round(s.total_tokens / s.user_msg_count)) : '--'}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Agents (${subs.length})</h3>
+      <div class="subagent-list">
+        ${subs.map(([name, v]) => {
+          const shortModel = (v.model || '').replace('claude-', '').replace(/-\d{8}$/, '');
+          const tipText = shortModel ? `${name} | Model: ${shortModel} | ${v.messages} API calls` : `${name} | ${v.messages} API calls`;
+          const displayName = name === 'main' ? 'Main session' : name.replace('agent-', '').slice(0, 8) + '...';
+          return `
+          <div class="subagent-row" data-tip="${tipText}">
+            <div class="subagent-top">
+              <span class="subagent-name">${name === 'main' ? 'Main session' : displayName}</span>
+              <span class="subagent-tokens">${fmt(v.total)}</span>
+            </div>
+            <div class="subagent-bar">
+              <div class="subagent-bar-fill" style="width:${(v.total / maxSubTotal * 100).toFixed(1)}%"></div>
+            </div>
+          </div>
+        `}).join('')}
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Token Timeline</h3>
+      <div class="chart-container">
+        <canvas id="timeline-chart"></canvas>
+      </div>
+    </div>
+  `;
+
+  renderChart(s);
+}
+
+function renderChart(s) {
+  const canvas = document.getElementById('timeline-chart');
+  if (!canvas) return;
+
+  if (chart) chart.destroy();
+
+  const tl = s.timeline || [];
+  if (tl.length === 0) return;
+
+  const labels = tl.map(p => {
+    try {
+      return new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch { return ''; }
+  });
+
+  const data = tl.map(p => p.cumulative);
+
+  chart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16,185,129,0.08)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 0,
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#e4e4e7',
+          titleColor: '#09090b',
+          bodyColor: '#09090b',
+          bodyFont: { family: "'Geist Mono'", size: 11 },
+          titleFont: { family: "'Geist Mono'", size: 10 },
+          padding: 8,
+          cornerRadius: 6,
+          displayColors: false,
+          callbacks: {
+            label: (ctx) => fmt(ctx.raw) + ' tokens'
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#52525b', font: { size: 10, family: "'Geist Mono'" }, maxTicksLimit: 6 },
+          grid: { color: 'rgba(39,39,42,0.5)' },
+          border: { display: false }
+        },
+        y: {
+          ticks: {
+            color: '#52525b',
+            font: { size: 10, family: "'Geist Mono'" },
+            callback: (v) => fmt(v)
+          },
+          grid: { color: 'rgba(39,39,42,0.3)' },
+          border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+function esc(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Auto-refresh: only for 24h and less
+let autoRefreshInterval = null;
+
+function updateAutoRefresh() {
+  const hours = parseInt(document.getElementById('hours-select').value, 10);
+  const statusEl = document.getElementById('autorefresh-status');
+
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+
+  if (hours <= 24) {
+    autoRefreshInterval = setInterval(fetchData, 5000);
+    statusEl.textContent = '';
+  } else {
+    autoRefreshInterval = null;
+    statusEl.textContent = 'auto-refresh off';
+    statusEl.style.color = 'var(--text2)';
+  }
+}
+
+fetchData();
+updateAutoRefresh();
+document.getElementById('hours-select').addEventListener('change', () => {
+  fetchData();
+  updateAutoRefresh();
+});
+
+// Tooltip positioning
+const tooltip = document.getElementById('tooltip');
+document.addEventListener('mouseover', (e) => {
+  const tip = e.target.closest('[data-tip]');
+  if (tip && tip.dataset.tip) {
+    tooltip.textContent = tip.dataset.tip;
+    tooltip.style.display = 'block';
+    const rect = tip.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.top - tooltip.offsetHeight - 8;
+    if (left + 240 > window.innerWidth) left = window.innerWidth - 250;
+    if (left < 8) left = 8;
+    if (top < 8) top = rect.bottom + 8;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  }
+});
+document.addEventListener('mouseout', (e) => {
+  if (e.target.closest('[data-tip]')) tooltip.style.display = 'none';
+});
+
+// Search and sort (delegated since they re-render)
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'search-input') {
+    searchQuery = e.target.value;
+    renderSessions();
+    renderShareBar();
+  }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'sort-select') {
+    sortBy = e.target.value;
+    renderSessions();
+  }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  // Don't trigger when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+  const filtered = getFilteredSessions();
+
+  if (e.key === 'r' || e.key === 'R') {
+    e.preventDefault();
+    fetchData();
+  }
+  if (e.key === 'j' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    const idx = filtered.findIndex(s => s.id === selectedId);
+    const next = idx < filtered.length - 1 ? idx + 1 : 0;
+    selectSession(filtered[next].id);
+  }
+  if (e.key === 'k' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const idx = filtered.findIndex(s => s.id === selectedId);
+    const prev = idx > 0 ? idx - 1 : filtered.length - 1;
+    selectSession(filtered[prev].id);
+  }
+  if (e.key === '/') {
+    e.preventDefault();
+    const input = document.getElementById('search-input');
+    if (input) input.focus();
+  }
+  if (e.key === 'Escape') {
+    const input = document.getElementById('search-input');
+    if (input && document.activeElement === input) {
+      searchQuery = '';
+      input.value = '';
+      input.blur();
+      renderSessions();
+      renderShareBar();
+    }
+  }
+  // Number keys for time filter
+  const timeMap = { '1': '1', '2': '6', '3': '12', '4': '24', '5': '72', '6': '168', '7': '720' };
+  if (timeMap[e.key]) {
+    document.getElementById('hours-select').value = timeMap[e.key];
+    fetchData();
+    updateAutoRefresh();
+  }
+});
+</script>
+
+</body>
+</html>

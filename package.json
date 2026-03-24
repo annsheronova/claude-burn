@@ -1,0 +1,37 @@
+{
+  "name": "claude-burn",
+  "version": "1.0.0",
+  "description": "Monitor Claude Code token usage, burn rate, and session attribution. Zero dependencies.",
+  "bin": {
+    "claude-burn": "./bin/claude-burn.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "public/"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "token-monitor",
+    "usage",
+    "anthropic",
+    "burn-rate",
+    "dashboard",
+    "cli",
+    "developer-tools"
+  ],
+  "author": "annsher416",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/annsher416/claude-burn.git"
+  },
+  "homepage": "https://github.com/annsher416/claude-burn",
+  "bugs": {
+    "url": "https://github.com/annsher416/claude-burn/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
