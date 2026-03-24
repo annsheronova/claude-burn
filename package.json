@@ -21,15 +21,15 @@
     "cli",
     "developer-tools"
   ],
-  "author": "annsher416",
+  "author": "annsheronova",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/annsher416/claude-burn.git"
+    "url": "git+https://github.com/annsheronova/claude-burn.git"
   },
-  "homepage": "https://github.com/annsher416/claude-burn",
+  "homepage": "https://github.com/annsheronova/claude-burn",
   "bugs": {
-    "url": "https://github.com/annsher416/claude-burn/issues"
+    "url": "https://github.com/annsheronova/claude-burn/issues"
   },
   "engines": {
     "node": ">=18.0.0"
