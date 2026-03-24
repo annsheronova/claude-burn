@@ -698,8 +698,8 @@ function renderDetail(id) {
     alertHtml = `<div class="burn-alert ${level}">
       <div style="display:flex;flex-direction:column;gap:8px;flex:1">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <span>Recent (last 3 min) <span class="tip" data-tip="Token consumption rate during the last 3 minutes of activity. Shows current intensity — spikes when subagents run or large files are read.">?</span></span>
-          <span class="burn-val">${fmt(recentRate)}<span style="font-size:12px;font-weight:400">/min</span></span>
+          <span>${recentRate > 0 ? 'Recent (last 3 min)' : 'Recent'} <span class="tip" data-tip="${recentRate > 0 ? 'Token consumption rate in the last 3 real-time minutes. Only shown for active sessions.' : 'Session is idle — no recent activity. The average rate below is based on active time when the session was in use.'}">?</span></span>
+          <span class="burn-val">${recentRate > 0 ? fmt(recentRate) : 'idle'}<span style="font-size:12px;font-weight:400">${recentRate > 0 ? '/min' : ''}</span></span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span>Average (active time) <span class="tip" data-tip="Total tokens divided by active time only (idle gaps over 2 min excluded). Shows your true average consumption rate when working.">?</span></span>

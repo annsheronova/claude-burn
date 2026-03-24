@@ -148,19 +148,22 @@ function parseSession(sessionPath, windowStartISO) {
 
       burnRate = totalTokens / (activeSec / 60);
 
-      // Recent burn rate: tokens in last 3 minutes of activity
-      const recentCutoff = new Date(t2 - 3 * 60 * 1000).toISOString();
-      let recentTokens = 0;
-      let recentFirst = null;
-      for (const entry of timeline) {
-        if (entry.ts >= recentCutoff) {
-          recentTokens += entry.tokens;
-          if (!recentFirst) recentFirst = entry.ts;
+      // Recent burn rate: only for active sessions, based on real-time last 3 minutes
+      const isCurrentlyActive = (Date.now() - t2) / 1000 < ACTIVE_THRESHOLD_SEC;
+      if (isCurrentlyActive) {
+        const recentCutoff = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+        let recentTokens = 0;
+        let recentFirst = null;
+        for (const entry of timeline) {
+          if (entry.ts >= recentCutoff) {
+            recentTokens += entry.tokens;
+            if (!recentFirst) recentFirst = entry.ts;
+          }
         }
-      }
-      if (recentFirst) {
-        const recentDuration = Math.max((t2 - new Date(recentFirst).getTime()) / 1000 / 60, 0.1);
-        recentBurnRate = recentTokens / recentDuration;
+        if (recentFirst) {
+          const recentDuration = Math.max((Date.now() - new Date(recentFirst).getTime()) / 1000 / 60, 0.1);
+          recentBurnRate = recentTokens / recentDuration;
+        }
       }
     } catch {}
   }
