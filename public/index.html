@@ -158,6 +158,7 @@
     font-family: var(--font-mono);
   }
   .session-meta .highlight { color: var(--text); font-weight: 600; }
+  .session-cost { color: var(--accent); font-weight: 600; }
 
   .session-bar {
     margin-top: 8px;
@@ -191,6 +192,21 @@
     letter-spacing: 0.5px;
     margin-bottom: 12px;
     font-weight: 500;
+  }
+
+  .cost-total {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .cost-breakdown {
+    display: flex;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text2);
   }
 
   .token-grid {
@@ -657,6 +673,7 @@ function renderSessions() {
           <span>${fmtTime(s.first_ts)} - ${fmtTime(s.last_ts)}${s.is_active ? '' : ' · ' + fmtAgo(s.last_ts)}</span>
           <span>${s.user_msg_count} msgs</span>
           <span>tokens: <span class="highlight">${fmt(s.total_tokens)}</span></span>
+          ${s.api_cost ? `<span class="session-cost">$${s.api_cost.total.toFixed(2)}</span>` : ''}
           ${s.user_msg_count > 0 ? `<span>${fmt(Math.round(s.total_tokens / s.user_msg_count))}/msg</span>` : ''}
           ${s.subagent_count > 0 ? `<span>${s.subagent_count} subagents</span>` : ''}
         </div>
@@ -738,6 +755,19 @@ function renderDetail(id) {
         </div>
       </div>
     </div>
+
+    ${s.api_cost ? `
+    <div class="detail-section">
+      <h3>API Equivalent Cost <span class="tip" data-tip="What this session would cost at API pay-per-token pricing. Calculated per model used (Opus/Sonnet/Haiku have different rates). You pay a flat monthly fee instead.">?</span></h3>
+      <div class="cost-total">$${s.api_cost.total.toFixed(2)}</div>
+      <div class="cost-breakdown">
+        <span>in $${s.api_cost.input.toFixed(2)}</span>
+        <span>out $${s.api_cost.output.toFixed(2)}</span>
+        <span>cr $${s.api_cost.cache_read.toFixed(2)}</span>
+        <span>cw $${s.api_cost.cache_create.toFixed(2)}</span>
+      </div>
+    </div>
+    ` : ''}
 
     <div class="detail-section">
       <h3>Session Info</h3>

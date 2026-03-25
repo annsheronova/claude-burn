@@ -7,6 +7,19 @@ const { URL } = require('url');
 const ACTIVE_THRESHOLD_SEC = 120;
 const HOME_DIR = os.homedir();
 
+// API pricing per 1M tokens (2026 rates)
+const PRICING = {
+  'opus': { input: 5, output: 25, cache_read: 0.5, cache_create: 6.25 },
+  'sonnet': { input: 3, output: 15, cache_read: 0.3, cache_create: 3.75 },
+  'haiku': { input: 1, output: 5, cache_read: 0.1, cache_create: 1.25 },
+};
+function getPricing(modelName) {
+  if (!modelName) return PRICING.opus;
+  if (modelName.includes('haiku')) return PRICING.haiku;
+  if (modelName.includes('sonnet')) return PRICING.sonnet;
+  return PRICING.opus;
+}
+
 function parseSession(sessionPath, windowStartISO) {
   const sid = path.basename(sessionPath, '.jsonl');
   const sessionDir = path.join(path.dirname(sessionPath), sid);
@@ -216,6 +229,26 @@ function parseSession(sessionPath, windowStartISO) {
     subagents: subagentStats,
     model_stats: modelStats,
     timeline: cumulativeTimeline,
+    api_cost: calculateSessionCost(modelStats),
+  };
+}
+
+function calculateSessionCost(modelStats) {
+  let costIn = 0, costOut = 0, costCR = 0, costCC = 0;
+  for (const [mname, ms] of Object.entries(modelStats || {})) {
+    const p = getPricing(mname);
+    costIn += ms.input / 1e6 * p.input;
+    costOut += ms.output / 1e6 * p.output;
+    costCR += ms.cache_read / 1e6 * p.cache_read;
+    costCC += ms.cache_create / 1e6 * p.cache_create;
+  }
+  const total = costIn + costOut + costCR + costCC;
+  return {
+    input: Math.round(costIn * 100) / 100,
+    output: Math.round(costOut * 100) / 100,
+    cache_read: Math.round(costCR * 100) / 100,
+    cache_create: Math.round(costCC * 100) / 100,
+    total: Math.round(total * 100) / 100,
   };
 }
 
@@ -275,34 +308,20 @@ function createServer({ port, dataDir }) {
       const totalTokens = data.reduce((s, d) => s + d.total_tokens, 0);
       const activeCount = data.filter(d => d.is_active).length;
 
-      // Calculate API-equivalent cost per model
-      const PRICING = {
-        'opus': { input: 5, output: 25, cache_read: 0.5, cache_create: 6.25 },
-        'sonnet': { input: 3, output: 15, cache_read: 0.3, cache_create: 3.75 },
-        'haiku': { input: 1, output: 5, cache_read: 0.1, cache_create: 1.25 },
-      };
-      function getPricing(modelName) {
-        if (modelName.includes('haiku')) return PRICING.haiku;
-        if (modelName.includes('sonnet')) return PRICING.sonnet;
-        return PRICING.opus;
-      }
-
-      let costInput = 0, costOutput = 0, costCR = 0, costCC = 0;
+      // Sum per-session API costs
+      const apiCost = { input: 0, output: 0, cache_read: 0, cache_create: 0 };
       for (const session of data) {
-        for (const [mname, ms] of Object.entries(session.model_stats || {})) {
-          const p = getPricing(mname);
-          costInput += ms.input / 1e6 * p.input;
-          costOutput += ms.output / 1e6 * p.output;
-          costCR += ms.cache_read / 1e6 * p.cache_read;
-          costCC += ms.cache_create / 1e6 * p.cache_create;
+        if (session.api_cost) {
+          apiCost.input += session.api_cost.input;
+          apiCost.output += session.api_cost.output;
+          apiCost.cache_read += session.api_cost.cache_read;
+          apiCost.cache_create += session.api_cost.cache_create;
         }
       }
-      const apiCost = {
-        input: Math.round(costInput * 100) / 100,
-        output: Math.round(costOutput * 100) / 100,
-        cache_read: Math.round(costCR * 100) / 100,
-        cache_create: Math.round(costCC * 100) / 100,
-      };
+      apiCost.input = Math.round(apiCost.input * 100) / 100;
+      apiCost.output = Math.round(apiCost.output * 100) / 100;
+      apiCost.cache_read = Math.round(apiCost.cache_read * 100) / 100;
+      apiCost.cache_create = Math.round(apiCost.cache_create * 100) / 100;
       apiCost.total = Math.round((apiCost.input + apiCost.output + apiCost.cache_read + apiCost.cache_create) * 100) / 100;
 
       jsonResponse(res, {
