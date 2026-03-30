@@ -2,6 +2,9 @@
   "name": "claude-burn",
   "version": "1.0.1",
   "description": "Monitor Claude Code token usage, burn rate, and session attribution. Zero dependencies.",
+  "scripts": {
+    "test": "node --test"
+  },
   "bin": {
     "claude-burn": "./bin/claude-burn.js"
   },
