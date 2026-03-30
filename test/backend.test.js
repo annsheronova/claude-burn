@@ -58,7 +58,7 @@ test('buildSessionAggregate handles sessions without usage records', () => {
 });
 
 test('getAllSessions returns fixture sessions sorted by last timestamp', () => {
-  const sessions = getAllSessions(fixturesRoot, 24, null, null);
+  const sessions = getAllSessions(fixturesRoot, 24 * 365, null, null);
 
   assert.deepEqual(
     sessions.map((session) => session.id),
