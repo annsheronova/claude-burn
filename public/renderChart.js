@@ -165,32 +165,43 @@ export function renderChart(state, session) {
   const shortModel = (m) => m.replace('claude-', '').replace(/-\d{8}$/, '');
 
   function filterData(modelFilter) {
+    const filtered = [];
+    const filteredLabels = [];
+    const filteredFullLabels = [];
+    for (let i = 0; i < timeline.length; i++) {
+      if (!modelFilter || timeline[i].model === modelFilter) {
+        filtered.push(timeline[i]);
+        filteredLabels.push(labels[i]);
+        filteredFullLabels.push(fullLabels[i]);
+      }
+    }
     return {
-      tokens: timeline.map((p) => (!modelFilter || p.model === modelFilter) ? (p.tokens || 0) : null),
-      cost: timeline.map((p) => (!modelFilter || p.model === modelFilter) ? (p.cost || 0) : null),
+      tokens: filtered.map((p) => p.tokens || 0),
+      cost: filtered.map((p) => p.cost || 0),
+      labels: filteredLabels,
+      fullLabels: filteredFullLabels,
     };
   }
 
   state._perCallFilter = state._perCallFilter || null;
   state._perCallData = filterData(state._perCallFilter);
 
-  const hasData = state._perCallData.tokens.some((v) => v > 0);
+  const hasData = timeline.some((p) => (p.tokens || 0) > 0);
   if (!hasData) return;
 
-  function buildPerCallChart(data, mode) {
+  function buildPerCallChart(dataSet, mode) {
     return new globalThis.Chart(costCanvas, {
       type: 'line',
       data: {
-        labels,
+        labels: dataSet.labels,
         datasets: [{
-          data,
+          data: dataSet[mode],
           borderColor: mode === 'cost' ? '#ef4444' : '#8b5cf6',
           backgroundColor: mode === 'cost' ? 'rgba(239,68,68,0.08)' : 'rgba(139,92,246,0.08)',
           fill: true,
           tension: 0.3,
           pointRadius: 0,
           borderWidth: 1.5,
-          spanGaps: true,
         }],
       },
       options: {
@@ -209,7 +220,7 @@ export function renderChart(state, session) {
             cornerRadius: 6,
             displayColors: false,
             callbacks: {
-              title: (items) => fullLabels[items[0]?.dataIndex] || '',
+              title: (items) => dataSet.fullLabels[items[0]?.dataIndex] || '',
               label: mode === 'cost'
                 ? (ctx) => `$${ctx.raw.toFixed(4)}`
                 : (ctx) => `${fmt(ctx.raw)} tokens`,
@@ -242,7 +253,7 @@ export function renderChart(state, session) {
     state._perCallData = filterData(state._perCallFilter);
     const mode = state.perCallMode || 'tokens';
     if (state.costChart) state.costChart.destroy();
-    state.costChart = buildPerCallChart(state._perCallData[mode], mode);
+    state.costChart = buildPerCallChart(state._perCallData, mode);
   }
 
   rebuildCostChart();
