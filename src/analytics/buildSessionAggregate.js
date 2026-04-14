@@ -1,7 +1,7 @@
 const os = require('os');
 const path = require('path');
 
-const { calculateSessionCost } = require('../domain/pricing');
+const { calculateSessionCost, getPricing } = require('../domain/pricing');
 const { discoverSessionFiles } = require('../ingest/discoverSessionFiles');
 const { readJsonlEntries } = require('../ingest/readJsonlEntries');
 
@@ -31,21 +31,69 @@ function buildProjectName(sessionPath, homeDir) {
   return projectDirName.replace(`-${homeEscaped}-`, '~/').replace(/-/g, '/');
 }
 
+function calcEntryCost(entry) {
+  const pricing = getPricing(entry.model);
+  return (
+    (entry.input || 0) / 1e6 * pricing.input +
+    (entry.output || 0) / 1e6 * pricing.output +
+    (entry.cache_read || 0) / 1e6 * pricing.cache_read +
+    (entry.cache_create || 0) / 1e6 * pricing.cache_create
+  );
+}
+
 function buildCumulativeTimeline(timeline) {
+  const maxPoints = 200;
   const cumulativeTimeline = [];
   let cumulative = 0;
-  const step = Math.max(1, Math.floor(timeline.length / 200));
 
-  for (let i = 0; i < timeline.length; i++) {
-    cumulative += timeline[i].tokens;
-    if (i % step === 0 || i === timeline.length - 1) {
+  if (timeline.length <= maxPoints) {
+    for (const entry of timeline) {
+      cumulative += entry.tokens;
       cumulativeTimeline.push({
-        ts: timeline[i].ts,
+        ts: entry.ts,
         cumulative,
-        context: timeline[i].cache_read || 0,
-        agent: timeline[i].agent,
+        context: entry.cache_read || 0,
+        tokens: entry.tokens,
+        cost: Math.round(calcEntryCost(entry) * 10000) / 10000,
+        model: entry.model || '',
+        agent: entry.agent,
       });
     }
+    return cumulativeTimeline;
+  }
+
+  const step = Math.max(1, Math.floor(timeline.length / maxPoints));
+
+  for (let i = 0; i < timeline.length; i += step) {
+    const end = Math.min(i + step, timeline.length);
+    let bucketTokens = 0;
+    let bucketContext = 0;
+    let bucketCost = 0;
+    // track per-model tokens in bucket
+    const modelTokens = {};
+
+    for (let j = i; j < end; j++) {
+      cumulative += timeline[j].tokens;
+      bucketTokens += timeline[j].tokens;
+      bucketContext += timeline[j].cache_read || 0;
+      bucketCost += calcEntryCost(timeline[j]);
+      const m = timeline[j].model || '';
+      modelTokens[m] = (modelTokens[m] || 0) + timeline[j].tokens;
+    }
+
+    const count = end - i;
+    // dominant model in this bucket
+    const dominantModel = Object.entries(modelTokens).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+
+    cumulativeTimeline.push({
+      ts: timeline[end - 1].ts,
+      cumulative,
+      context: Math.round(bucketContext / count),
+      tokens: Math.round(bucketTokens / count),
+      cost: Math.round(bucketCost / count * 10000) / 10000,
+      model: dominantModel,
+      agent: timeline[end - 1].agent,
+    });
   }
 
   return cumulativeTimeline;
@@ -196,7 +244,16 @@ function buildSessionAggregate(sessionPath, options = {}) {
       stats.messages++;
 
       if (ts) {
-        timeline.push({ ts, tokens: totalTokensForMessage, cache_read: cacheReadTokens, agent: agentName });
+        timeline.push({
+          ts,
+          tokens: totalTokensForMessage,
+          input: inputTokens,
+          output: outputTokens,
+          cache_read: cacheReadTokens,
+          cache_create: cacheCreateTokens,
+          agent: agentName,
+          model: entryModel,
+        });
       }
     }
   }

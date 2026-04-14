@@ -146,6 +146,19 @@ export function renderDetail(state) {
         <canvas id="context-chart"></canvas>
       </div>
     </div>
+
+    <div class="detail-section">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3>Per API Call <span class="tip" data-tip="Tokens or cost per individual API call. Shows how each message grows with context. Drops after /compact. Toggle between tokens and dollar cost.">?</span></h3>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="model-filter" class="filter-select"></select>
+          <button id="cost-toggle" class="toggle-btn" data-mode="tokens">Show $</button>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="cost-chart"></canvas>
+      </div>
+    </div>
   `;
 
   renderChart(state, session);

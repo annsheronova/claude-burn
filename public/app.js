@@ -39,6 +39,7 @@ function scrollSelectedCardIntoView() {
 
 function selectSession(id, options = {}) {
   state.selectedId = id;
+  state._perCallFilter = null;
   renderSessions(state);
   renderDetail(state);
   if (options.scroll !== false) {
