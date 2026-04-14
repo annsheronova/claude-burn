@@ -42,6 +42,7 @@ function buildCumulativeTimeline(timeline) {
       cumulativeTimeline.push({
         ts: timeline[i].ts,
         cumulative,
+        context: timeline[i].cache_read || 0,
         agent: timeline[i].agent,
       });
     }
@@ -195,7 +196,7 @@ function buildSessionAggregate(sessionPath, options = {}) {
       stats.messages++;
 
       if (ts) {
-        timeline.push({ ts, tokens: totalTokensForMessage, agent: agentName });
+        timeline.push({ ts, tokens: totalTokensForMessage, cache_read: cacheReadTokens, agent: agentName });
       }
     }
   }

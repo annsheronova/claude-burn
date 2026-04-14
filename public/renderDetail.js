@@ -139,6 +139,13 @@ export function renderDetail(state) {
         <canvas id="timeline-chart"></canvas>
       </div>
     </div>
+
+    <div class="detail-section">
+      <h3>Context Size <span class="tip" data-tip="Cache read tokens per API call — shows the actual context size sent each turn. Drops indicate /compact or context compression. Lower is cheaper.">?</span></h3>
+      <div class="chart-container">
+        <canvas id="context-chart"></canvas>
+      </div>
+    </div>
   `;
 
   renderChart(state, session);
